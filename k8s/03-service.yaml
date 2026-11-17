@@ -1,0 +1,18 @@
+# Service interno (ClusterIP): agrupa los pods con la etiqueta app=info-api.
+# No se expone fuera del clúster: la entrada es Traefik (04-ingress.yaml), que
+# usa este Service para saber qué pods existen y les envía las peticiones.
+apiVersion: v1
+kind: Service
+metadata:
+  name: info-api
+  namespace: taller
+  labels:
+    app: info-api
+spec:
+  type: ClusterIP
+  selector:
+    app: info-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

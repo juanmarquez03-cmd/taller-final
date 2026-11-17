@@ -1,0 +1,27 @@
+# Reglas para Traefik: las peticiones a /api/info y /api/version que llegan al
+# balanceador (master, puerto 30080) van al Service info-api. Traefik reparte
+# entre los pods listos con round robin.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: info-api
+  namespace: taller
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /api/info
+            pathType: Prefix
+            backend:
+              service:
+                name: info-api
+                port:
+                  name: http
+          - path: /api/version
+            pathType: Prefix
+            backend:
+              service:
+                name: info-api
+                port:
+                  name: http

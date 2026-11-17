@@ -1,0 +1,109 @@
+# Deployment: mantiene 5 pods de la aplicación y controla sus versiones.
+#
+# Cada versión es un ReplicaSet distinto. Al cambiar la imagen (por ejemplo de
+# 1.0.0 a 2.0.0) el Deployment crea el ReplicaSet nuevo y va pasando los pods
+# del viejo al nuevo de uno en uno, sin bajar nunca de 5 pods listos.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: info-api
+  namespace: taller
+  labels:
+    app: info-api
+  annotations:
+    # Texto que muestra "kubectl rollout history" para esta versión.
+    kubernetes.io/change-cause: "v1.0.0: versión inicial"
+spec:
+  replicas: 5
+  # Cuántas versiones anteriores (ReplicaSets viejos) se guardan para poder
+  # volver atrás con "kubectl rollout undo".
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: info-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1         # como máximo 1 pod extra durante el cambio (6 en total)
+      maxUnavailable: 0   # nunca menos de 5 pods listos: el servicio no se cae
+  template:
+    metadata:
+      labels:
+        app: info-api
+    spec:
+      # Reparto: como máximo 1 pod de diferencia entre workers (uno por worker).
+      # matchLabelKeys cuenta solo los pods de la misma versión, así el reparto
+      # se mantiene durante el cambio de versión.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
+          labelSelector:
+            matchLabels:
+              app: info-api
+
+      # Si un worker se cae, sus pods se mueven a otro a los 30 s (por defecto 300 s).
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+
+      containers:
+        - name: info-api
+          # La versión está en el tag de la imagen. Para cambiar de versión se
+          # cambia este tag (ver docs/DEMO.md).
+          image: ghcr.io/juanmarquez03-cmd/info-api:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: TZ
+              value: America/Bogota
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+              ephemeral-storage: 100Mi
+            limits:
+              cpu: "1"
+              memory: 384Mi
+              ephemeral-storage: 512Mi
+
+          # startupProbe: hasta 3 min para arrancar en VMs lentas.
+          startupProbe:
+            httpGet:
+              path: /api/info
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          # livenessProbe: si la app se cuelga, el kubelet reinicia el contenedor.
+          livenessProbe:
+            httpGet:
+              path: /api/info
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # readinessProbe: Traefik y el Service solo envían tráfico a pods listos.
+          # Durante el cambio de versión, el pod viejo se borra solo cuando el
+          # nuevo ya pasó esta sonda.
+          readinessProbe:
+            httpGet:
+              path: /api/info
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2

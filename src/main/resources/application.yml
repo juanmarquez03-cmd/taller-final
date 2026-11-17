@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: info-api
+  lifecycle:
+    # Al recibir SIGTERM (cuando Kubernetes borra el pod) termina las peticiones
+    # en curso hasta 10 s antes de apagarse.
+    timeout-per-shutdown-phase: 10s
+
+server:
+  port: 8080
+  shutdown: graceful
+
+app:
+  # Versión de la aplicación. La imagen la recibe en la variable APP_VERSION,
+  # que se fija al construirla a partir del tag de Git (v1.0.0 -> 1.0.0).
+  version: ${APP_VERSION:dev}
+
+taller:
+  integrantes:
+    - "Nicolas David Castro Cely"
+    - "Juan David Márquez Pinto"
+    - "Andres Mauricio Sanchez Sanchez"

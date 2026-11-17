@@ -1,0 +1,29 @@
+# Configuración de Traefik para el chart oficial de Helm (traefik/traefik).
+#
+#   helm install traefik traefik/traefik -n traefik --create-namespace -f traefik/values.yaml
+
+# Un solo pod de Traefik, ubicado en el master.
+deployment:
+  replicas: 1
+
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+# El master tiene el taint control-plane, que impide pods normales; Traefik lo tolera.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+# Entrada por el puerto 30080: http://100.105.119.107:30080
+service:
+  spec:
+    type: NodePort
+
+ports:
+  web:
+    nodePort: 30080
+  # No se usa HTTPS en este proyecto.
+  websecure:
+    expose:
+      default: false
